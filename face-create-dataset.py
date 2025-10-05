@@ -12,8 +12,28 @@ dataset_path = "dataset/"
 if not os.path.exists(dataset_path):
     os.mkdir(dataset_path)
 
-person_id = 1  # id for person that we will detect
+
+# Automatically assign next available person ID
+names_file = "names.txt"
+if os.path.exists(names_file):
+    with open(names_file, "r") as f:
+        ids = [int(line.split(":")[0]) for line in f if ":" in line and line.split(":")[0].isdigit()]
+    person_id = max(ids) + 1 if ids else 0
+else:
+    person_id = 0
+
+print(f"Assigned person ID: {person_id}")
+print("Enter person name: ")
+person_name = input()
+
+# Save the name mapping
+with open(names_file, "a") as f:
+    f.write(f"{person_id}:{person_name}\n")
+
 count = 0  # count for image name id
+
+print(f"Capturing images for {person_name} (ID: {person_id})")
+print("Press 'q' to quit or wait for 30 images to be captured")
 
 while True:
     _, frame = cap.read()

@@ -3,3 +3,4 @@
 .DS_Store
 dataset/
 face-model.yml
+names.txt

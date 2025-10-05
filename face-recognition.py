@@ -9,8 +9,18 @@ recognizer.read("face-model.yml")  # face model from face_training.py
 faceCascade = cv2.CascadeClassifier("haarcascade_frontalface_default.xml")
 font = cv2.FONT_HERSHEY_COMPLEX
 
-id = 0
-names = ["None", "Izzat"]
+# Read names from file
+names = ["Unknown"]  # ID 0 is reserved for unknown
+try:
+    with open("names.txt", "r") as f:
+        for line in f:
+            id_name = line.strip().split(":")
+            while len(names) <= int(id_name[0]):
+                names.append("Unknown")
+            names[int(id_name[0])] = id_name[1]
+except FileNotFoundError:
+    print("Warning: names.txt not found. Only 'Unknown' will be shown.")
+
 cam = int(os.environ.get("cam", 0))
 cap = cv2.VideoCapture(cam)
 
