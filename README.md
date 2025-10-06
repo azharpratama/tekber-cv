@@ -10,6 +10,7 @@ This project is a collection of Python scripts for experimenting with computer v
 - **Face Dataset Creation** (`face_create_dataset.py`): Captures and saves face images from your webcam to build a dataset for training.
 - **Face Model Training** (`face_training.py`): Trains a face recognition model using images in the dataset folder.
 - **Face Recognition** (`face_recognition.py`): Recognizes faces using a trained model (LBPH) and displays the name and confidence.
+- **Rock Paper Scissor (Hand Gesture Game)** (`rock-paper-scissor/main.py`): Play rock-paper-scissors against the AI using your hand gestures! The script uses your webcam and MediaPipe to detect your hand and recognize your move (rock, paper, or scissors). The UI shows your camera at the bottom and the AI at the top, with real-time scoring and handedness detection.
 
 ## Requirements
 
@@ -53,6 +54,10 @@ This project is a collection of Python scripts for experimenting with computer v
 - **Face Recognition:**
   ```bash
   python face_recognition.py
+  ```
+- **Rock Paper Scissor Game:**
+  ```bash
+  python rock-paper-scissor/main.py
   ```
 
 ## Notes
