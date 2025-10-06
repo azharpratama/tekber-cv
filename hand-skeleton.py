@@ -7,7 +7,8 @@ load_dotenv()
 
 cam = int(os.environ.get("cam", 0))
 cap = cv2.VideoCapture(cam)
-hands = mp.solutions.hands.Hands()
+# Allow detection of up to 6 hands (multiple people)
+hands = mp.solutions.hands.Hands(max_num_hands=6)
 draws = mp.solutions.drawing_utils
 
 while True:
