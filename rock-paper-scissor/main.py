@@ -1,3 +1,4 @@
+
 import cv2
 import mediapipe as mp
 import os
@@ -5,13 +6,37 @@ import random
 import time
 import numpy as np
 from dotenv import load_dotenv
+import tkinter as tk
 
 load_dotenv()
+
+
+# Get screen height using tkinter
+root = tk.Tk()
+root.withdraw()
+screen_height = root.winfo_screenheight()
+screen_width = root.winfo_screenwidth()
+root.destroy()
 
 cam = int(os.environ.get("cam", 0))
 cap = cv2.VideoCapture(cam)
 hands = mp.solutions.hands.Hands(max_num_hands=1)
 draws = mp.solutions.drawing_utils
+
+# Get default camera size
+ret, temp_frame = cap.read()
+if not ret:
+    raise RuntimeError("Failed to read from camera.")
+orig_h, orig_w = temp_frame.shape[:2]
+
+# Set new height to 80% of screen height, keep aspect ratio
+target_h = int(screen_height * 0.8 // 2)  # since canvas is 2x frame height
+scale = target_h / orig_h
+target_w = int(orig_w * scale)
+
+# Set camera resolution (if supported)
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, target_w)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, target_h)
 
 
 # Load PNGs for moves using absolute paths relative to this script
@@ -26,10 +51,17 @@ move_imgs = {
 move_names = ["rock", "paper", "scissor"]
 
 
-def overlay_png(bg, fg, pos, border=False):
-    """Overlay fg PNG with alpha onto bg at pos (x, y). Optionally add border."""
+def overlay_png(bg, fg, pos, border=False, max_height=None):
+    """Overlay fg PNG with alpha onto bg at pos (x, y). Optionally add border. Optionally scale fg to max_height."""
     x, y = pos
     h, w = fg.shape[:2]
+    # Scale fg if max_height is set and fg is too tall
+    if max_height is not None and h > max_height:
+        scale_factor = max_height / h
+        new_w = int(w * scale_factor)
+        new_h = int(h * scale_factor)
+        fg = cv2.resize(fg, (new_w, new_h), interpolation=cv2.INTER_AREA)
+        h, w = fg.shape[:2]
     if y + h > bg.shape[0] or x + w > bg.shape[1]:
         return bg  # Don't draw if out of bounds
     if border:
@@ -84,7 +116,10 @@ result = ""
 player_move = None
 ai_move = None
 
+
 font = cv2.FONT_HERSHEY_SIMPLEX
+base_h = 240  # typical webcam height
+
 
 
 while True:
@@ -92,17 +127,24 @@ while True:
     if not ret:
         break
     frame = cv2.flip(frame, 1)
+    # Resize frame to target size if needed
+    frame = cv2.resize(frame, (target_w, target_h))
     frameRGB = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     hand_obj = hands.process(frameRGB)
 
     # Prepare a blank canvas: top for AI, bottom for player
     h, w = frame.shape[:2]
+    font_scale = h / base_h
+    # Clamp font_scale to a reasonable range (e.g., 0.7 to 1.2)
+    font_scale = max(0.7, min(font_scale, 1.2))
+    def scale(val):
+        return int(val * font_scale)
     canvas = 255 * np.ones((h * 2, w, 3), dtype=np.uint8)
     # Place player camera on bottom
     canvas[h : h * 2, 0:w] = frame
 
     # Draw horizontal dividing line
-    cv2.line(canvas, (0, h), (w, h), (180, 180, 180), 2)
+    cv2.line(canvas, (0, h), (w, h), (180, 180, 180), scale(2))
 
     # Draw hand skeleton and box with handedness label on player side (bottom)
     if hand_obj.multi_hand_landmarks:
@@ -125,35 +167,36 @@ while True:
                 hand_label = handedness_list[idx].classification[0].label
             else:
                 hand_label = "Hand"
-            cv2.rectangle(canvas[h:, :], (x_min, y_min), (x_max, y_max), (0, 0, 0), 3)
+            cv2.rectangle(canvas[h:, :], (x_min, y_min), (x_max, y_max), (0, 0, 0), scale(3))
             # Put handedness text above the box
-            (label_w, label_h), _ = cv2.getTextSize(hand_label, font, 1, 2)
+            (label_w, label_h), _ = cv2.getTextSize(hand_label, font, font_scale, scale(2))
             label_x = x_min + (x_max - x_min) // 2 - label_w // 2
-            label_y = max(y_min - 10, label_h + 5)
+            label_y = max(y_min - scale(10), label_h + scale(5))
             cv2.putText(
-                canvas[h:, :], hand_label, (label_x, label_y), font, 1, (0, 0, 0), 2
+                canvas[h:, :], hand_label, (label_x, label_y), font, font_scale, (0, 0, 0), scale(2)
             )
 
     # Centered score and result (top center)
     score_text = f"Score: AI {scores[0]} – You {scores[1]}"
-    (score_w, score_h), _ = cv2.getTextSize(score_text, font, 1.2, 3)
+    (score_w, score_h), _ = cv2.getTextSize(score_text, font, font_scale * 1.2, scale(3))
     cv2.putText(
-        canvas, score_text, (w // 2 - score_w // 2, 40), font, 1.2, (0, 0, 0), 3
+        canvas, score_text, (w // 2 - score_w // 2, scale(40)), font, font_scale * 1.2, (0, 0, 0), scale(3)
     )
 
     if startGame:
         if not stateResult:
             timer = time.time() - initialTime
             prompt = f"Show your move: {2-int(timer)}"
-            (prompt_w, _), _ = cv2.getTextSize(prompt, font, 1, 2)
+            (prompt_w, _), _ = cv2.getTextSize(prompt, font, font_scale, scale(2))
+            # Place prompt in the AI area (top half), below the score
             cv2.putText(
                 canvas,
                 prompt,
-                (w // 2 - prompt_w // 2, h + 90),
+                (w // 2 - prompt_w // 2, scale(90)),
                 font,
-                1,
+                font_scale,
                 (0, 0, 255),
-                2,
+                scale(2),
             )
             if timer > 2:
                 stateResult = True
@@ -183,61 +226,65 @@ while True:
         else:
             # Show AI move on top, player move on bottom, with border
             if ai_move in move_imgs:
-                overlay_png(canvas, move_imgs[ai_move], (50, 150), border=False)
-                cv2.putText(canvas, "AI", (50, 140), font, 1, (0, 0, 0), 2)
+                # Limit hand image height to 30% of frame height
+                max_img_h = int(h * 0.3)
+                overlay_png(canvas, move_imgs[ai_move], (scale(50), scale(150)), border=False, max_height=max_img_h)
+                cv2.putText(canvas, "AI", (scale(50), scale(140)), font, font_scale, (0, 0, 0), scale(2))
                 # Move label
                 if ai_move:
+                    # Use the same max_img_h for label offset
                     cv2.putText(
                         canvas,
                         ai_move.capitalize(),
-                        (50, 150 + move_imgs[ai_move].shape[0] + 40),
+                        (scale(50), scale(150) + max_img_h + scale(40)),
                         font,
-                        1,
+                        font_scale,
                         (0, 0, 0),
-                        2,
+                        scale(2),
                     )
             if player_move in move_imgs:
-                overlay_png(canvas, move_imgs[player_move], (50, h + 150), border=False)
-                cv2.putText(canvas, "You", (50, h + 140), font, 1, (0, 0, 0), 2)
+                max_img_h = int(h * 0.3)
+                overlay_png(canvas, move_imgs[player_move], (scale(50), h + scale(150)), border=False, max_height=max_img_h)
+                cv2.putText(canvas, "You", (scale(50), h + scale(140)), font, font_scale, (0, 0, 0), scale(2))
                 # Move label
                 if player_move:
                     cv2.putText(
                         canvas,
                         player_move.capitalize(),
-                        (50, h + 150 + move_imgs[player_move].shape[0] + 40),
+                        (scale(50), h + scale(150) + max_img_h + scale(40)),
                         font,
-                        1,
+                        font_scale,
                         (0, 0, 0),
-                        2,
+                        scale(2),
                     )
             # Centered result, larger and colored (top center)
-            (res_w, _), _ = cv2.getTextSize(result, font, 2, 4)
+            (res_w, _), _ = cv2.getTextSize(result, font, font_scale * 2, scale(4))
             color = (
                 (0, 128, 0)
                 if "Win" in result
                 else ((0, 0, 255) if "AI" in result else (0, 0, 0))
             )
-            cv2.putText(canvas, result, (w // 2 - res_w // 2, 110), font, 2, color, 4)
+            cv2.putText(canvas, result, (w // 2 - res_w // 2, scale(110)), font, font_scale * 2, color, scale(4))
 
     else:
         # Centered prompt (bottom center)
         prompt = "Press 's' to start, 'q' to quit"
-        (prompt_w, _), _ = cv2.getTextSize(prompt, font, 1, 2)
+        (prompt_w, _), _ = cv2.getTextSize(prompt, font, font_scale, scale(2))
         cv2.putText(
-            canvas, prompt, (w // 2 - prompt_w // 2, h * 2 - 40), font, 1, (0, 0, 0), 2
+            canvas, prompt, (w // 2 - prompt_w // 2, h * 2 - scale(40)), font, font_scale, (0, 0, 0), scale(2)
         )
 
     if stateResult and startGame:
         next_prompt = "Press 's' for next round"
-        (next_w, _), _ = cv2.getTextSize(next_prompt, font, 1, 2)
+        (next_w, _), _ = cv2.getTextSize(next_prompt, font, font_scale, scale(2))
         cv2.putText(
             canvas,
             next_prompt,
-            (w // 2 - next_w // 2, h * 2 - 10),
+            (w // 2 - next_w // 2, h * 2 - scale(10)),
             font,
-            1,
+            font_scale,
             (0, 0, 0),
-            2,
+            scale(2),
         )
 
     cv2.imshow("Rock Paper Scissor", canvas)
