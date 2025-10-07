@@ -32,7 +32,7 @@ alarm_triggered_for_event = False # Penanda agar alarm hanya berbunyi sekali per
 def play_alarm():
     """Fungsi untuk memainkan suara alarm."""
     try:
-        playsound('alarm.wav', block=False)
+        playsound('tekber-cv/eyetracking/alarm.wav', block=False)
     except Exception as e:
         print(f"Error memainkan suara: {e}. Pastikan file 'alarm.wav' ada di folder yang sama.")
 
